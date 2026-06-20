@@ -1,0 +1,126 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #fff;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #1a2332;
+  overflow: hidden;
+  user-select: none;
+}
+
+.topbar {
+  background: #1e3a5f;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 52px;
+  flex-shrink: 0;
+}
+
+.metric-box {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-value {
+  font-size: 32px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  color: #1e293b;
+}
+
+.metric-unit {
+  font-size: 13px;
+  font-weight: 500;
+  color: #94A3B8;
+}
+
+.metric-sub {
+  font-size: 12px;
+  color: #64748B;
+  margin-top: 2px;
+}
+
+.alert-box {
+  background: #FEF2F2;
+  border: 2px solid #C41E3A;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #C41E3A;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.fault-box {
+  background: #C41E3A;
+  color: #fff;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-weight: 800;
+  font-size: 18px;
+  text-align: center;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.bar-track {
+  height: 12px;
+  background: #E2E8F0;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748B;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.overspeed-banner {
+  background: #C41E3A;
+  color: #fff;
+  text-align: center;
+  padding: 8px;
+  font-weight: 800;
+  font-size: 16px;
+  border-radius: 8px;
+  animation: pulse 1s infinite;
+}

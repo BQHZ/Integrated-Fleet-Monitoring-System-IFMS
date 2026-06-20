@@ -1,0 +1,69 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #F8FAFC;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  color: #1a2332;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.tabular { font-variant-numeric: tabular-nums; }
+
+/* Leaflet fix */
+.leaflet-container { z-index: 1; }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
+
+/* Status colors */
+.status-loading    { background: #DBEAFE; color: #1D4ED8; }
+.status-hauling_loaded { background: #DCFCE7; color: #166534; }
+.status-dumping    { background: #FEF3C7; color: #92400E; }
+.status-hauling_empty { background: #F1F5F9; color: #475569; }
+.status-idle       { background: #FED7AA; color: #9A3412; }
+.status-pushing    { background: #E0E7FF; color: #3730A3; }
+.status-repositioning { background: #F1F5F9; color: #475569; }
+.status-waiting_truck { background: #FEF3C7; color: #92400E; }
+.status-loading_truck { background: #DCFCE7; color: #166534; }
+.status-swing_back { background: #DBEAFE; color: #1D4ED8; }
+.status-spraying   { background: #CFFAFE; color: #155E75; }
+.status-travelling { background: #F1F5F9; color: #475569; }
+.status-refilling  { background: #EDE9FE; color: #5B21B6; }
+.status-unknown    { background: #F1F5F9; color: #94A3B8; }
+
+/* Severity colors */
+.sev-high   { background: #FEE2E2; color: #991B1B; border-left: 3px solid #C41E3A; }
+.sev-medium { background: #FFFBEB; color: #92400E; border-left: 3px solid #F59E0B; }
+.sev-low    { background: #F8FAFC; color: #475569; border-left: 3px solid #94A3B8; }
+
+/* Card */
+.card {
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+/* Table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th {
+  background: #F8FAFC;
+  padding: 8px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #64748B;
+  border-bottom: 1px solid #E2E8F0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.data-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1e293b;
+}
+.data-table tr:hover td { background: #F8FAFC; }
+.data-table tr:last-child td { border-bottom: none; }
