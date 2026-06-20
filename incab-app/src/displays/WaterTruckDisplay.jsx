@@ -42,7 +42,7 @@ export default function WaterTruckDisplay({ data: d }) {
   const isSpraying = d.status === 'spraying'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       {/* Top bar */}
       <div className="topbar" style={{ justifyContent: 'space-between' }}>
         <div>

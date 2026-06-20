@@ -4,7 +4,7 @@ export default function ServiceTruckDisplay({ data: d }) {
   const taskLabel = isFuel ? 'FUEL DELIVERY' : 'SERVICE / MAINTENANCE'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       <div className="topbar" style={{ justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 20 }}>{d.unit_id}</div>

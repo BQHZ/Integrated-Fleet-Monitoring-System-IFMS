@@ -2,7 +2,7 @@ export default function LoadingScreen({ unitId }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: '#fff', gap: 20,
+      height: '100%', background: '#fff', gap: 20,
     }}>
       <div style={{
         width: 48, height: 48, border: '4px solid #E2E8F0',

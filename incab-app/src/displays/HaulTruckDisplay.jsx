@@ -136,7 +136,7 @@ export default function HaulTruckDisplay({ data: d }) {
     : '—'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       <TopBar d={d} />
 
       {/* Main content: 3 columns */}

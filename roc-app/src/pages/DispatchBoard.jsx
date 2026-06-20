@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts'
 import {
   fetchDispatchMatrix, fetchCycleBreakdown, fetchPayloadAnalysis,
-  fetchDispatchOverrides, postDispatchOverride,
+  fetchDispatchOverrides, postDispatchOverride, fetchInstructions,
 } from '../api.js'
 
 function QueueBar({ depth }) {
@@ -78,18 +78,93 @@ function relTime(ts) {
   return new Date(ts * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
 }
 
+const STATUS_COLOR = { sent: '#F59E0B', ack: '#00875A', acted: '#0066CC' }
+const STATUS_LABEL = { sent: 'PENDING', ack: 'ACK ✓', acted: 'ACTED' }
+const PRIO_COLOR = { low: '#94A3B8', normal: '#0066CC', high: '#C41E3A' }
+
+function ActiveInstructionsPanel({ instructions, onRefresh }) {
+  const sentCount = instructions.filter(i => i.status === 'sent').length
+
+  return (
+    <div className="card" style={{ overflow: 'hidden' }}>
+      <div style={{
+        padding: '10px 14px', borderBottom: '1px solid #E2E8F0',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontWeight: 600, fontSize: 13 }}>
+          Active Instructions ({instructions.length}{sentCount > 0 ? ` · ${sentCount} pending` : ''})
+        </span>
+        <button onClick={onRefresh} style={{
+          background: '#fff', border: '1px solid #CBD5E1', borderRadius: 4,
+          padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600, color: '#475569',
+        }}>Refresh</button>
+      </div>
+      {instructions.length === 0 ? (
+        <div style={{ padding: 20, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+          Belum ada instruksi terkirim
+        </div>
+      ) : (
+        <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+          <table className="data-table">
+            <thead><tr>
+              <th>Waktu</th><th>Unit</th><th>Tipe</th><th>Priority</th>
+              <th>Sent By</th><th>Status</th><th>Ack By</th>
+            </tr></thead>
+            <tbody>
+              {instructions.slice(0, 30).map(i => (
+                <tr key={i.id}>
+                  <td style={{ fontSize: 11, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                    {relTime(i.ts)}
+                  </td>
+                  <td style={{ fontWeight: 700 }}>{i.unit_id}</td>
+                  <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{i.type}</td>
+                  <td>
+                    <span style={{
+                      background: `${PRIO_COLOR[i.priority] || '#475569'}15`,
+                      color: PRIO_COLOR[i.priority] || '#475569',
+                      padding: '1px 7px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    }}>{i.priority.toUpperCase()}</span>
+                  </td>
+                  <td style={{ fontSize: 12, color: '#64748B' }}>{i.sent_by}</td>
+                  <td>
+                    <span style={{
+                      background: `${STATUS_COLOR[i.status] || '#475569'}15`,
+                      color: STATUS_COLOR[i.status] || '#475569',
+                      padding: '1px 7px', borderRadius: 4, fontSize: 11, fontWeight: 700,
+                    }}>{STATUS_LABEL[i.status] || i.status.toUpperCase()}</span>
+                  </td>
+                  <td style={{ fontSize: 12, color: '#64748B' }}>
+                    {i.ack_by || (i.ack_at ? '—' : '')}
+                    {i.ack_at && (
+                      <span style={{ marginLeft: 4, fontSize: 10, color: '#94A3B8' }}>
+                        ({relTime(i.ack_at)})
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DispatchBoard({ siteFilter }) {
   const [matrix, setMatrix] = useState(null)
   const [cycles, setCycles] = useState([])
   const [payload, setPayload] = useState([])
   const [overrides, setOverrides] = useState([])
   const [overrideFor, setOverrideFor] = useState(null)
+  const [instructions, setInstructions] = useState([])
 
   const reload = () => {
     fetchDispatchMatrix().then(d => d && setMatrix(d))
     fetchCycleBreakdown().then(d => d && setCycles(d))
     fetchPayloadAnalysis().then(d => d && setPayload(d))
     fetchDispatchOverrides().then(d => d && setOverrides(d))
+    fetchInstructions().then(d => Array.isArray(d) && setInstructions(d))
   }
 
   useEffect(() => {
@@ -131,8 +206,17 @@ export default function DispatchBoard({ siteFilter }) {
     if (result) reload()
   }
 
+  const filteredInstructions = siteFilter === 'all'
+    ? instructions
+    : instructions.filter(i => {
+        const id = i.unit_id || ''
+        return id.includes(siteFilter === 'siteA' ? '-A' : '-B')
+      })
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <ActiveInstructionsPanel instructions={filteredInstructions} onRefresh={reload} />
+
       {/* Best-path recommendations dengan scoring formula */}
       <div className="card" style={{ overflow: 'hidden' }}>
         <div style={{ padding: '10px 14px', borderBottom: '1px solid #E2E8F0', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

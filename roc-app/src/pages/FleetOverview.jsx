@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import KPICard from '../components/KPICard.jsx'
-import FleetMap from '../components/FleetMap.jsx'
+import FleetMapGL from '../components/map/FleetMapGL.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import AlertFeed from '../components/AlertFeed.jsx'
-import { fetchProductionKPI } from '../api.js'
+import { fetchProductionKPI, fetchInstructions } from '../api.js'
 
 function formatLastUpdate(ts) {
   if (!ts) return '—'
@@ -16,10 +17,35 @@ function formatLastUpdate(ts) {
 
 export default function FleetOverview({ units, metricsOverall, metricsBySite, alerts, siteFilter }) {
   const [kpi, setKpi] = useState(null)
+  const location = useLocation()
+  const [forbiddenBanner, setForbiddenBanner] = useState(location.state?.forbidden ? location.state.attemptedPath : null)
+
+  useEffect(() => {
+    if (forbiddenBanner) {
+      const t = setTimeout(() => setForbiddenBanner(null), 5000)
+      return () => clearTimeout(t)
+    }
+  }, [forbiddenBanner])
+
+  const [pendingByUnit, setPendingByUnit] = useState({})
 
   useEffect(() => {
     fetchProductionKPI().then(d => d && setKpi(d))
-    const iv = setInterval(() => fetchProductionKPI().then(d => d && setKpi(d)), 10000)
+    const reloadInst = async () => {
+      const items = await fetchInstructions()
+      const map = {}
+      if (Array.isArray(items)) {
+        for (const i of items) {
+          if (i.status === 'sent') map[i.unit_id] = (map[i.unit_id] || 0) + 1
+        }
+      }
+      setPendingByUnit(map)
+    }
+    reloadInst()
+    const iv = setInterval(() => {
+      fetchProductionKPI().then(d => d && setKpi(d))
+      reloadInst()
+    }, 10000)
     return () => clearInterval(iv)
   }, [])
 
@@ -41,6 +67,17 @@ export default function FleetOverview({ units, metricsOverall, metricsBySite, al
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {forbiddenBanner && (
+        <div style={{
+          background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B',
+          borderRadius: 8, padding: '10px 16px', fontSize: 13, fontWeight: 600,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span>🔒</span>
+          <span>Akses ditolak ke <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 3 }}>{forbiddenBanner}</code> — role Anda tidak memiliki izin admin.</span>
+        </div>
+      )}
+
       {/* KPI Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
         <KPICard
@@ -92,7 +129,7 @@ export default function FleetOverview({ units, metricsOverall, metricsBySite, al
             Live Fleet Map
           </div>
           <div style={{ height: 340 }}>
-            <FleetMap units={filtered} />
+            <FleetMapGL units={filtered} height={340} pendingByUnit={pendingByUnit} />
           </div>
         </div>
 

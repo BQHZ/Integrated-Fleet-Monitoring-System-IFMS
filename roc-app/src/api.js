@@ -1,13 +1,17 @@
-// GANTI ke IP laptop saat demo di jaringan WiFi yang sama
-const BASE_URL = 'http://localhost:8000'
+// Wrapper di atas axios instance yang sudah punya Bearer token interceptor.
+// Halaman2 cukup import { fetchXxx } dari sini — tidak peduli mekanisme auth.
+import { api, BASE_URL as _BASE_URL } from './auth/api.js'
+
+export const BASE_URL = _BASE_URL
 
 async function apiFetch(path) {
   try {
-    const res = await fetch(`${BASE_URL}${path}`)
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    const res = await api.get(path)
+    return res.data
   } catch (e) {
-    console.warn(`[api] Failed ${path}:`, e.message)
+    if (e.response?.status !== 401) {
+      console.warn(`[api] Failed ${path}:`, e.message)
+    }
     return null
   }
 }
@@ -24,18 +28,33 @@ export const fetchPayloadHistogram = () => apiFetch('/api/roc/payload-histogram'
 export const fetchDelayBreakdown = () => apiFetch('/api/roc/delay-breakdown')
 export const fetchDispatchRecommendations = () => apiFetch('/api/roc/dispatch-recommendations')
 export const fetchDispatchOverrides = () => apiFetch('/api/roc/dispatch-overrides')
+export const fetchGeofences = () => apiFetch('/api/geofences')
+
+export async function sendInstruction(body) {
+  try {
+    const res = await api.post('/dispatch/instructions', body)
+    return res.data
+  } catch (e) {
+    throw e
+  }
+}
+
+export async function fetchInstructions(unitId) {
+  try {
+    const url = unitId ? `/dispatch/instructions?unit_id=${unitId}` : '/dispatch/instructions'
+    const res = await api.get(url)
+    return res.data
+  } catch { return [] }
+}
 
 export async function postDispatchOverride(body) {
   try {
-    const res = await fetch(`${BASE_URL}/api/roc/dispatch-override`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    return await res.json()
+    const res = await api.post('/api/roc/dispatch-override', body)
+    return res.data
   } catch (e) {
-    console.warn('[api] override failed:', e.message)
+    if (e.response?.status !== 401) {
+      console.warn('[api] override failed:', e.message)
+    }
     return null
   }
 }

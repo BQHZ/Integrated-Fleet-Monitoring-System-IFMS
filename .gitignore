@@ -1,6 +1,10 @@
 .env
 
 backend/data/users.json
+backend/data/units.json
+backend/data/geofences.json
+backend/data/audit_log.json
+backend/data/instructions.json
 
 .claude/
 

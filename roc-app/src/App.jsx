@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { useState, useCallback } from 'react'
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { useFleetSocket } from './useFleetSocket.js'
 import Sidebar from './components/Sidebar.jsx'
 import TopBar from './components/TopBar.jsx'
@@ -8,6 +8,13 @@ import DispatchBoard from './pages/DispatchBoard.jsx'
 import SafetyMonitor from './pages/SafetyMonitor.jsx'
 import Maintenance from './pages/Maintenance.jsx'
 import ShiftReport from './pages/ShiftReport.jsx'
+import Login from './pages/Login.jsx'
+import UserManagement from './pages/admin/UserManagement.jsx'
+import FleetMaster from './pages/admin/FleetMaster.jsx'
+import Geofence from './pages/admin/Geofence.jsx'
+import AuditLog from './pages/admin/AuditLog.jsx'
+import { AuthProvider } from './auth/AuthContext.jsx'
+import RouteGuard from './auth/RouteGuard.jsx'
 
 function Layout() {
   const location = useLocation()
@@ -32,6 +39,10 @@ function Layout() {
             <Route path="/safety" element={<SafetyMonitor {...pageProps} />} />
             <Route path="/maintenance" element={<Maintenance {...pageProps} />} />
             <Route path="/report" element={<ShiftReport {...pageProps} />} />
+            <Route path="/admin/users" element={<RouteGuard role="super_admin"><UserManagement /></RouteGuard>} />
+            <Route path="/admin/fleet" element={<RouteGuard role="super_admin"><FleetMaster /></RouteGuard>} />
+            <Route path="/admin/geofences" element={<RouteGuard role="super_admin"><Geofence /></RouteGuard>} />
+            <Route path="/admin/audit" element={<RouteGuard role="super_admin"><AuditLog /></RouteGuard>} />
           </Routes>
         </main>
       </div>
@@ -39,10 +50,30 @@ function Layout() {
   )
 }
 
+function AppRoutes() {
+  const navigate = useNavigate()
+  const handleUnauthorized = useCallback(() => {
+    navigate('/login', { replace: true })
+  }, [navigate])
+
+  return (
+    <AuthProvider onUnauthorized={handleUnauthorized}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/*" element={
+          <RouteGuard>
+            <Layout />
+          </RouteGuard>
+        } />
+      </Routes>
+    </AuthProvider>
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout />
+      <AppRoutes />
     </BrowserRouter>
   )
 }

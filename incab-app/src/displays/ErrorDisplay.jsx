@@ -2,7 +2,7 @@ export default function ErrorDisplay({ error, unitId }) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      height: '100vh', background: '#FFF5F5', gap: 16, padding: 24,
+      height: '100%', background: '#FFF5F5', gap: 16, padding: 24,
     }}>
       <div style={{ fontSize: 48, color: '#C41E3A' }}>⚠</div>
       <div style={{ fontSize: 20, fontWeight: 700, color: '#C41E3A' }}>Koneksi Gagal</div>

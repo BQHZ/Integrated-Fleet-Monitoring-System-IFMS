@@ -49,7 +49,7 @@ export default function ExcavatorDisplay({ data: d }) {
   const bcmEst = ((d.bucket_swings || 0) * 12).toFixed(0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       {/* Top bar */}
       <div className="topbar" style={{ justifyContent: 'space-between' }}>
         <div>

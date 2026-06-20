@@ -56,7 +56,7 @@ export default function GraderDisplay({ data: d }) {
   const speed = d.current_speed_kmh || 0
   const speedOk = speed >= 8 && speed <= 15
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       <div className="topbar" style={{ justifyContent: 'space-between' }}>
         <div>
           <div style={{ fontWeight: 800, fontSize: 20 }}>{d.unit_id}</div>

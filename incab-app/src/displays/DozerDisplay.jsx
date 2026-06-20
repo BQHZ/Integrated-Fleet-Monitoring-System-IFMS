@@ -18,7 +18,7 @@ function GaugeBar({ label, value, max = 100, unit = '%', warn, danger, color = '
 
 export default function DozerDisplay({ data: d }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#F8FAFC' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
       {/* Top bar */}
       <div className="topbar" style={{ justifyContent: 'space-between' }}>
         <div>

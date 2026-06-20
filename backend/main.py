@@ -46,6 +46,8 @@ from auth import (
     validate_ws_token,
     verify_password,
 )
+from admin import router as admin_router, ensure_seed
+from dispatch import router as dispatch_router, incab_manager, set_context as set_dispatch_context
 
 MQTT_HOST = "localhost"
 MQTT_PORT = 1883
@@ -994,6 +996,11 @@ async def auth_login(body: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Username atau password salah",
         )
+    if user.get("disabled"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Akun ini telah dinonaktifkan",
+        )
     token = create_access_token(user)
     return {"access_token": token, "user": public_user(user)}
 
@@ -1005,9 +1012,15 @@ async def auth_me(user: dict = Depends(get_current_user)):
 
 # -------------------- Guard semua /api/* dengan JWT --------------------
 
+# Path /api/* yang public (untuk in-cab device — tidak punya token)
+_PUBLIC_API_PREFIXES = ("/api/incab/",)
+
+
 @app.middleware("http")
 async def api_auth_guard(request: Request, call_next):
-    if request.url.path.startswith("/api/") and request.method != "OPTIONS":
+    path = request.url.path
+    if path.startswith("/api/") and request.method != "OPTIONS" \
+            and not any(path.startswith(p) for p in _PUBLIC_API_PREFIXES):
         auth_header = request.headers.get("authorization", "")
         if not auth_header.lower().startswith("bearer "):
             return JSONResponse(
@@ -1031,8 +1044,10 @@ async def api_auth_guard(request: Request, call_next):
 async def startup():
     global main_loop
     main_loop = asyncio.get_event_loop()
+    ensure_seed()
     mqtt_client.connect_async(MQTT_HOST, MQTT_PORT, keepalive=60)
     mqtt_client.loop_start()
+    set_dispatch_context(mqtt_client, main_loop)
     print("[backend] FastAPI v3 siap.")
 
 
@@ -1138,6 +1153,20 @@ async def get_dispatch_overrides():
 async def post_dispatch_override(payload: dict):
     return store.add_dispatch_override(payload)
 
+@app.get("/api/geofences")
+async def get_public_geofences():
+    """Read-only feed dari geofences.json — dipakai ROC map untuk render overlay.
+    Admin tetap satu-satunya yang boleh write (lewat /admin/geofences)."""
+    import json as _json
+    from pathlib import Path as _Path
+    p = _Path(__file__).parent / "data" / "geofences.json"
+    if not p.exists():
+        return []
+    try:
+        return _json.loads(p.read_text(encoding="utf-8")).get("geofences", [])
+    except _json.JSONDecodeError:
+        return []
+
 
 async def _ws_handler(websocket: WebSocket, token: str | None):
     user = validate_ws_token(token)
@@ -1173,6 +1202,36 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
 @app.websocket("/ws/fleet")
 async def websocket_fleet(websocket: WebSocket, token: str | None = None):
     await _ws_handler(websocket, token)
+
+
+app.include_router(admin_router)
+app.include_router(dispatch_router)
+
+
+@app.websocket("/ws/incab/{unit_id}")
+async def ws_incab(websocket: WebSocket, unit_id: str):
+    """Push instruksi ke in-cab device. MVS: no auth ketat — unit_id valid sudah cukup."""
+    from dispatch import _read_instructions, _find_unit
+    if not _find_unit(unit_id):
+        await websocket.accept()
+        await websocket.close(code=4404, reason=f"Unit {unit_id} tidak ditemukan")
+        return
+    await websocket.accept()
+    await incab_manager.register(unit_id, websocket)
+    # Push pending unacked instructions
+    pending = [i for i in _read_instructions() if i["unit_id"] == unit_id and i["status"] != "ack"]
+    for inst in reversed(pending[:10]):  # paling lama dulu
+        try:
+            await websocket.send_json({"type": "instruction", "data": inst})
+        except Exception:
+            break
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await incab_manager.unregister(unit_id, websocket)
 
 
 if __name__ == "__main__":
