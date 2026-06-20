@@ -15,6 +15,7 @@ import Geofence from './pages/admin/Geofence.jsx'
 import AuditLog from './pages/admin/AuditLog.jsx'
 import { AuthProvider } from './auth/AuthContext.jsx'
 import RouteGuard from './auth/RouteGuard.jsx'
+import ErrorBoundary from './components/ErrorBoundary.jsx'
 
 function Layout() {
   const location = useLocation()
@@ -72,8 +73,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppRoutes />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

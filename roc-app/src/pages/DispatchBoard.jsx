@@ -3,7 +3,9 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import {
   fetchDispatchMatrix, fetchCycleBreakdown, fetchPayloadAnalysis,
   fetchDispatchOverrides, postDispatchOverride, fetchInstructions,
+  fetchFeedback, sendFeedback,
 } from '../api.js'
+import { useAuth } from '../auth/AuthContext.jsx'
 
 function QueueBar({ depth }) {
   const max = 5
@@ -76,6 +78,189 @@ function relTime(ts) {
   if (diff < 60) return `${diff}d lalu`
   if (diff < 3600) return `${Math.floor(diff / 60)}m lalu`
   return new Date(ts * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+}
+
+const CATEGORY_COLOR = {
+  safety: '#C41E3A',
+  productivity: '#0066CC',
+  quality: '#7C3AED',
+  praise: '#16A34A',
+}
+
+const QUICK_PRESETS = [
+  { category: 'productivity', text: 'Reduce idle time' },
+  { category: 'safety', text: 'Watch overspeed' },
+  { category: 'praise', text: 'Good payload — keep it up' },
+  { category: 'safety', text: 'Slow down on grade' },
+]
+
+function OperatorFeedbackPanel({ feedback, units, siteFilter, onSent }) {
+  const { user } = useAuth()
+  const haulOrAny = units.filter(u =>
+    !siteFilter || siteFilter === 'all' || u.site_id === siteFilter
+  )
+  const [unitId, setUnitId] = useState(haulOrAny[0]?.unit_id || '')
+  const [category, setCategory] = useState('productivity')
+  const [text, setText] = useState('')
+  const [priority, setPriority] = useState('normal')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState(null)
+
+  const submit = async (e) => {
+    e?.preventDefault()
+    if (!unitId || !text.trim()) { setError('Pilih unit & isi pesan'); return }
+    setSending(true); setError(null)
+    try {
+      await sendFeedback({ unit_id: unitId, category, text: text.trim(), priority })
+      setText('')
+      onSent?.()
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message)
+    }
+    setSending(false)
+  }
+
+  const applyPreset = (p) => {
+    setCategory(p.category)
+    setText(p.text)
+  }
+
+  const visibleFeedback = feedback.filter(f => {
+    if (!siteFilter || siteFilter === 'all') return true
+    const suffix = siteFilter === 'siteA' ? '-A' : '-B'
+    return (f.unit_id || '').includes(suffix)
+  })
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div className="card" style={{ padding: 14 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10 }}>
+          Operator Feedback — Coaching
+        </div>
+        <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
+              Unit
+              <select value={unitId} onChange={e => setUnitId(e.target.value)}
+                style={inp}>
+                {haulOrAny.length === 0 && <option value="">Tidak ada unit</option>}
+                {haulOrAny.map(u => (
+                  <option key={u.unit_id} value={u.unit_id}>{u.unit_id} — {u.unit_type}</option>
+                ))}
+              </select>
+            </label>
+            <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
+              Category
+              <select value={category} onChange={e => setCategory(e.target.value)} style={inp}>
+                <option value="safety">Safety</option>
+                <option value="productivity">Productivity</option>
+                <option value="quality">Quality</option>
+                <option value="praise">Praise</option>
+              </select>
+            </label>
+          </div>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
+            Message (max 200)
+            <textarea value={text} onChange={e => setText(e.target.value.slice(0, 200))}
+              rows={2} placeholder="Pesan untuk operator..."
+              style={{ ...inp, resize: 'vertical' }} maxLength={200} />
+            <span style={{ float: 'right', fontSize: 10, color: '#94A3B8' }}>
+              {text.length}/200
+            </span>
+          </label>
+          <label style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>
+            Priority
+            <select value={priority} onChange={e => setPriority(e.target.value)} style={inp}>
+              <option value="low">Low</option>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+            </select>
+          </label>
+          {error && (
+            <div style={{
+              background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B',
+              borderRadius: 5, padding: '6px 10px', fontSize: 12,
+            }}>{error}</div>
+          )}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
+            <span style={{ fontSize: 11, color: '#64748B', marginRight: 4, alignSelf: 'center' }}>
+              Quick:
+            </span>
+            {QUICK_PRESETS.map((p, i) => (
+              <button key={i} type="button" onClick={() => applyPreset(p)} style={{
+                background: '#fff', color: CATEGORY_COLOR[p.category],
+                border: `1px solid ${CATEGORY_COLOR[p.category]}55`,
+                borderRadius: 4, padding: '3px 8px', fontSize: 11, cursor: 'pointer', fontWeight: 600,
+              }}>
+                {p.text}
+              </button>
+            ))}
+          </div>
+          <button type="submit" disabled={sending || !unitId || !text.trim()} style={{
+            background: '#0066CC', color: '#fff', border: 'none',
+            borderRadius: 5, padding: '8px 12px', fontSize: 13, fontWeight: 700,
+            cursor: sending ? 'not-allowed' : 'pointer', opacity: sending ? 0.6 : 1, marginTop: 4,
+          }}>
+            {sending ? 'Mengirim...' : 'Send Feedback'}
+          </button>
+        </form>
+      </div>
+
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{
+          padding: '10px 14px', borderBottom: '1px solid #E2E8F0', fontWeight: 600, fontSize: 13,
+        }}>
+          Feedback History ({visibleFeedback.length})
+        </div>
+        {visibleFeedback.length === 0 ? (
+          <div style={{ padding: 20, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+            Belum ada feedback terkirim
+          </div>
+        ) : (
+          <div style={{ maxHeight: 260, overflowY: 'auto', padding: 10 }}>
+            {visibleFeedback.slice(0, 30).map(f => (
+              <FeedbackItem key={f.id} f={f} />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FeedbackItem({ f }) {
+  const c = CATEGORY_COLOR[f.category] || '#475569'
+  return (
+    <div style={{
+      borderLeft: `4px solid ${c}`,
+      background: f.category === 'praise' ? '#F0FDF4' : '#fff',
+      border: '1px solid #E2E8F0', borderLeftWidth: 4, borderLeftColor: c,
+      borderRadius: 5, padding: '8px 12px', marginBottom: 6,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+        <span style={{ fontWeight: 800, fontSize: 13 }}>{f.unit_id}</span>
+        <span style={{
+          background: c + '22', color: c, padding: '1px 7px', borderRadius: 3,
+          fontSize: 10, fontWeight: 800, letterSpacing: '0.05em',
+        }}>{f.category.toUpperCase()}</span>
+        <span style={{ fontSize: 11, color: f.status === 'ack' ? '#16A34A' : '#F59E0B', fontWeight: 700 }}>
+          {f.status === 'ack' ? `ACK ✓ ${f.ack_by || ''}` : 'PENDING'}
+        </span>
+      </div>
+      <div style={{ fontSize: 12, color: '#475569', marginTop: 3 }}>
+        {f.text}
+      </div>
+      <div style={{ fontSize: 10, color: '#94A3B8', marginTop: 3 }}>
+        from {f.sent_by} · {relTime(f.ts)}
+      </div>
+    </div>
+  )
+}
+
+const inp = {
+  display: 'block', width: '100%', boxSizing: 'border-box',
+  marginTop: 4, padding: '6px 9px', fontSize: 12,
+  border: '1px solid #CBD5E1', borderRadius: 5,
 }
 
 const STATUS_COLOR = { sent: '#F59E0B', ack: '#00875A', acted: '#0066CC' }
@@ -151,13 +336,14 @@ function ActiveInstructionsPanel({ instructions, onRefresh }) {
   )
 }
 
-export default function DispatchBoard({ siteFilter }) {
+export default function DispatchBoard({ siteFilter, units = [] }) {
   const [matrix, setMatrix] = useState(null)
   const [cycles, setCycles] = useState([])
   const [payload, setPayload] = useState([])
   const [overrides, setOverrides] = useState([])
   const [overrideFor, setOverrideFor] = useState(null)
   const [instructions, setInstructions] = useState([])
+  const [feedback, setFeedback] = useState([])
 
   const reload = () => {
     fetchDispatchMatrix().then(d => d && setMatrix(d))
@@ -165,6 +351,7 @@ export default function DispatchBoard({ siteFilter }) {
     fetchPayloadAnalysis().then(d => d && setPayload(d))
     fetchDispatchOverrides().then(d => d && setOverrides(d))
     fetchInstructions().then(d => Array.isArray(d) && setInstructions(d))
+    fetchFeedback().then(d => Array.isArray(d) && setFeedback(d))
   }
 
   useEffect(() => {
@@ -216,6 +403,13 @@ export default function DispatchBoard({ siteFilter }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <ActiveInstructionsPanel instructions={filteredInstructions} onRefresh={reload} />
+
+      <OperatorFeedbackPanel
+        feedback={feedback}
+        units={units}
+        siteFilter={siteFilter}
+        onSent={reload}
+      />
 
       {/* Best-path recommendations dengan scoring formula */}
       <div className="card" style={{ overflow: 'hidden' }}>

@@ -5,6 +5,7 @@ backend/data/units.json
 backend/data/geofences.json
 backend/data/audit_log.json
 backend/data/instructions.json
+backend/data/feedback.json
 
 .claude/
 

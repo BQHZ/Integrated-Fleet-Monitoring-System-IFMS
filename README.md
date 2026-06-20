@@ -34,10 +34,33 @@ pip install -r requirements.txt
 python seed_users.py
 ```
 
-Default credentials (UBAH untuk production):
-- `admin` / `admin123` → super_admin
-- `dispatcher.mtbu` / `mtbu123` → roc_dispatcher (site MTBU)
-- `dispatcher.adro` / `adro123` → roc_dispatcher (site ADRO)
+## Login Credentials (Demo)
+
+⚠️ **UBAH SEMUA PASSWORD untuk production.** Default seed credentials:
+
+| Username | Password | Role | Scope |
+|---|---|---|---|
+| `admin` | `admin123` | super_admin | Akses semua, CRUD users/units/geofences |
+| `dispatcher.mtbu` | `mtbu123` | roc_dispatcher | Hanya site **MTBU** |
+| `dispatcher.adro` | `adro123` | roc_dispatcher | Hanya site **ADRO** |
+
+Reset password lewat super_admin → User Management → Reset PW. Atau jalankan ulang
+`python seed_users.py --force` (overwrite ke default).
+
+## User Roles
+
+### `super_admin`
+- Full CRUD: users, units (fleet master), geofences
+- Lihat audit log semua mutasi
+- Kirim instruction/feedback ke unit di **semua site** (bypass scope)
+- Mengelola operator dispatcher
+
+### `roc_dispatcher`
+- Hanya akses unit di **site-nya sendiri** (MTBU atau ADRO)
+- Kirim instruction (waypoint/digging/dumping/speed_limit/message/assignment)
+- Kirim coaching feedback (safety/productivity/quality/praise)
+- Override dispatch recommendations dengan audit trail
+- TIDAK bisa CRUD users/units/geofences (UI admin tidak muncul, endpoint 403)
 
 > File yang tidak boleh masuk git (sudah di `.gitignore`): `.env`, `backend/data/users.json`, `venv/`, `node_modules/`, `.claude/`, `__pycache__/`.
 
@@ -110,14 +133,47 @@ Ganti `localhost` ke IP laptop di:
 
 Cek IP laptop: `ipconfig` (Windows) → IPv4 Address
 
-## ROC Dashboard — 5 Halaman
+## ROC Dashboard — Halaman
 
-1. **Fleet Overview** — Live map, KPI produksi, utilisasi, tabel unit
-2. **Dispatch Board** — Assignment matrix excavator-truck, payload distribution, cycle breakdown
-3. **Safety Monitor** — Event log, speed zones, operator ranking
+**Untuk semua user:**
+1. **Fleet Overview** — Live MapLibre, KPI produksi (BCM/UoA/Availability), tabel unit
+2. **Dispatch Board** — Best-path scoring, override, heatmap road, **Active Instructions** + **Operator Feedback Panel**
+3. **Safety Monitor** — Speeding/harsh brake/no-go zone/fatigue/near-miss, operator ranking
 4. **Maintenance** — Health score per unit, predictive alerts, cross-site benchmark
-5. **Shift Report** — BCM target vs aktual, delay breakdown, summary per unit
+5. **Shift Report** — BCM target vs aktual, delay breakdown, payload histogram, **Coaching Summary**
+
+**Khusus super_admin (section "ADMIN" di sidebar):**
+- User Management — CRUD user, reset password, soft disable
+- Fleet Master — CRUD unit + spec
+- Geofence — table editor + **Edit on Map** (klik area→add vertex, drag→move, right-click→delete)
+- Audit Log — semua mutasi (user/unit/geofence/instruction/feedback) dengan before/after JSON
+
+## Map Controls (FleetMap di Fleet Overview)
+
+- **Layer Switcher** (kiri-atas) — Street / Satellite / Hybrid / Terrain + **3D pitch** toggle
+- **Pan**: drag mouse · **Zoom**: scroll/pinch · **Rotate**: right-click+drag
+- **Layer overlay** (toggle via control kanan-atas): Fleet Units, Loading Points, Dump Points, Haul Road, Pit Boundary, No-Go Zones
+- **Hover unit** → popup (speed/payload/fuel/status)
+- **Click unit** → highlight + ring biru
+- **Marker badge** ungu dengan angka → unit ada **pending instruction**
+
+### Dispatcher Tools (kanan-atas, hanya muncul jika roc_dispatcher/super_admin):
+- **Set Digging Point** — klik di map → marker orange (local candidate)
+- **Set Dumping Point** — klik → marker biru
+- **Draw Route** — klik berurutan (smooth bezier curve), double-click selesai
+- Setelah candidate ter-set, panel kiri-bawah muncul → tombol **Send to Unit →** buka dialog target unit + priority
+
+## In-Cab Display
+
+- Layout: Top Strip · MiniMap kiri 40% · Display kanan 60% · Bottom Strip
+- **Bell 🔔** = pending instructions · **💬** = unread coaching feedback
+- **Day/Night toggle** ☀/☾ — preferensi tersimpan di localStorage
+- **InstructionBanner** muncul auto saat dispatcher kirim instruksi (dengan chime)
+- **FeedbackInbox** klik 💬 → list feedback, praise hijau, safety merah
+- **Acknowledge** button → status di ROC berubah ack ✓
 
 ## Catatan
 
-Semua angka berlabel **[ASUMSI]** adalah nilai estimasi untuk keperluan demo, bukan data PAMA riil.
+- Angka berlabel **[ASUMSI]** = estimasi untuk demo, bukan data PAMA riil
+- Field di-tag **[SIM]** = nilai sintetik (di-derive dari simulator basic data)
+- Semua user/unit/geofence/instruction/feedback disimpan sebagai JSON file di `backend/data/` (excluded dari git)

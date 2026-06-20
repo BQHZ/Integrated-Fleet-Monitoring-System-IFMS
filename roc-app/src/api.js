@@ -47,6 +47,19 @@ export async function fetchInstructions(unitId) {
   } catch { return [] }
 }
 
+export async function sendFeedback(body) {
+  const res = await api.post('/dispatch/feedback', body)
+  return res.data
+}
+
+export async function fetchFeedback(unitId) {
+  try {
+    const url = unitId ? `/dispatch/feedback?unit_id=${unitId}` : '/dispatch/feedback'
+    const res = await api.get(url)
+    return res.data
+  } catch { return [] }
+}
+
 export async function postDispatchOverride(body) {
   try {
     const res = await api.post('/api/roc/dispatch-override', body)

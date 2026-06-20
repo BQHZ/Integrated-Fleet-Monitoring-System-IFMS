@@ -1,6 +1,99 @@
 import { useEffect, useState } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
-import { fetchShiftSummary, fetchPayloadHistogram } from '../api.js'
+import { fetchShiftSummary, fetchPayloadHistogram, fetchFeedback } from '../api.js'
+
+const CATEGORY_BADGE = {
+  safety: { bg: '#FEE2E2', fg: '#991B1B' },
+  productivity: { bg: '#DBEAFE', fg: '#1D4ED8' },
+  quality: { bg: '#EDE9FE', fg: '#5B21B6' },
+  praise: { bg: '#DCFCE7', fg: '#166534' },
+}
+
+function CoachingSummaryPanel({ feedback, siteFilter }) {
+  const visible = feedback.filter(f => {
+    if (!siteFilter || siteFilter === 'all') return true
+    const suffix = siteFilter === 'siteA' ? '-A' : '-B'
+    return (f.unit_id || '').includes(suffix)
+  })
+
+  // Group by unit_id, count category, last 3
+  const byOperator = {}
+  for (const f of visible) {
+    const u = f.unit_id
+    if (!byOperator[u]) byOperator[u] = { unit_id: u, categories: {}, recent: [] }
+    byOperator[u].categories[f.category] = (byOperator[u].categories[f.category] || 0) + 1
+    if (byOperator[u].recent.length < 3) byOperator[u].recent.push(f)
+  }
+  const operators = Object.values(byOperator).sort((a, b) => {
+    const totA = Object.values(a.categories).reduce((s, n) => s + n, 0)
+    const totB = Object.values(b.categories).reduce((s, n) => s + n, 0)
+    return totB - totA
+  })
+
+  return (
+    <div className="card" style={{ padding: '12px 14px' }}>
+      <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
+        Coaching Summary per Operator
+        <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 8 }}>
+          ({visible.length} feedback shift ini)
+        </span>
+      </div>
+      {operators.length === 0 ? (
+        <div style={{ padding: 16, textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+          Belum ada coaching feedback
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+          {operators.map(op => (
+            <OperatorCoachingCard key={op.unit_id} op={op} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OperatorCoachingCard({ op }) {
+  return (
+    <div style={{
+      border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', background: '#fff',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
+        <span style={{ fontWeight: 800, fontSize: 14, color: '#1e293b' }}>{op.unit_id}</span>
+        <span style={{ fontSize: 11, color: '#64748B' }}>
+          {Object.values(op.categories).reduce((s, n) => s + n, 0)} total
+        </span>
+      </div>
+      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+        {Object.entries(op.categories).map(([cat, n]) => {
+          const b = CATEGORY_BADGE[cat] || { bg: '#F1F5F9', fg: '#475569' }
+          return (
+            <span key={cat} style={{
+              background: b.bg, color: b.fg, padding: '2px 7px', borderRadius: 4,
+              fontSize: 11, fontWeight: 700,
+            }}>{cat}: {n}</span>
+          )
+        })}
+      </div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: '#64748B', marginBottom: 4 }}>
+        RECENT
+      </div>
+      {op.recent.map(f => {
+        const b = CATEGORY_BADGE[f.category] || { bg: '#F1F5F9', fg: '#475569' }
+        return (
+          <div key={f.id} style={{
+            fontSize: 11, marginBottom: 4, padding: '4px 6px',
+            background: f.category === 'praise' ? '#F0FDF4' : '#F8FAFC',
+            borderLeft: `3px solid ${b.fg}`, borderRadius: 3,
+            color: '#475569',
+          }}>
+            <strong style={{ color: b.fg }}>{f.category}:</strong> {f.text}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 function ProgressBar({ value, max, color = '#0066CC' }) {
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0
@@ -14,11 +107,13 @@ function ProgressBar({ value, max, color = '#0066CC' }) {
 export default function ShiftReport({ units, siteFilter }) {
   const [summary, setSummary] = useState(null)
   const [histogram, setHistogram] = useState(null)
+  const [feedback, setFeedback] = useState([])
 
   useEffect(() => {
     const reload = () => {
       fetchShiftSummary().then(d => d && setSummary(d))
       fetchPayloadHistogram().then(d => d && setHistogram(d))
+      fetchFeedback().then(d => Array.isArray(d) && setFeedback(d))
     }
     reload()
     const iv = setInterval(reload, 10000)
@@ -232,6 +327,8 @@ export default function ShiftReport({ units, siteFilter }) {
           )}
         </div>
       </div>
+
+      <CoachingSummaryPanel feedback={feedback} siteFilter={siteFilter} />
 
       {/* Per-unit table */}
       <div className="card" style={{ overflow: 'hidden' }}>

@@ -22,11 +22,17 @@ const TYPE_LABEL = {
  * @returns {{el: HTMLElement, update: (unit, opts) => void}}
  */
 export function createUnitMarker(initialUnit, opts = {}) {
+  // PENTING: jangan sentuh el.style.transform — MapLibre pakai itu untuk
+  // positioning (translate(x,y)). Scaling/rotasi custom kita taruh di inner div.
   const el = document.createElement('div')
   el.className = 'pama-unit-marker'
   el.style.cursor = 'pointer'
-  el.style.transition = 'transform 0.2s'
-  el.style.willChange = 'transform'
+
+  const inner = document.createElement('div')
+  inner.style.transition = 'transform 0.2s'
+  inner.style.willChange = 'transform'
+  inner.style.transformOrigin = '50% 100%'  // anchor bottom (sama dengan marker anchor)
+  el.appendChild(inner)
 
   const render = (unit, o = {}) => {
     const color = STATUS_COLOR[unit.status] || '#64748B'
@@ -43,7 +49,7 @@ export function createUnitMarker(initialUnit, opts = {}) {
            <text x="22" y="9" text-anchor="middle" font-size="9" font-weight="bold" fill="white"
                  font-family="Inter,sans-serif">${o.pendingCount}</text></g>`
       : ''
-    el.innerHTML = `
+    inner.innerHTML = `
       <svg xmlns="http://www.w3.org/2000/svg" width="28" height="36" viewBox="0 0 28 36" style="display:block">
         ${ring}
         <g transform="rotate(${heading} 14 14)">
@@ -55,11 +61,8 @@ export function createUnitMarker(initialUnit, opts = {}) {
         ${pending}
         ${fault}
       </svg>`
-    if (o.selected) {
-      el.style.transform = 'scale(1.15)'
-    } else {
-      el.style.transform = 'scale(1)'
-    }
+    // Scaling pada inner — el.style.transform tetap milik MapLibre
+    inner.style.transform = o.selected ? 'scale(1.15)' : 'scale(1)'
   }
 
   render(initialUnit, opts)

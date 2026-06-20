@@ -1,122 +1,142 @@
-function GaugeBar({ label, value, max = 100, unit = '%', warn, danger, color = '#0066CC' }) {
-  const pct = Math.min(100, ((value || 0) / max) * 100)
-  const barColor = danger && value >= danger ? '#C41E3A' : warn && value >= warn ? '#F59E0B' : color
+import Gauge from '../shared/Gauge.jsx'
+import MetricTile from '../shared/MetricTile.jsx'
+import { useTheme } from '../shared/theme.jsx'
+
+export default function DozerDisplay({ data: d }) {
+  const { palette } = useTheme()
+
+  const transmissionStatus = d.transmission_temp_c > 100 ? 'crit' : d.transmission_temp_c > 90 ? 'warn' : 'ok'
+  const hydraulicStatus = d.hydraulic_oil_temp_c > 95 ? 'crit' : d.hydraulic_oil_temp_c > 85 ? 'warn' : 'ok'
+  const trackSlip = d.track_slip_pct ?? 0
+  const slipStatus = trackSlip > 10 ? 'warn' : 'ok'
+
+  const rpm = d.engine_rpm || 800
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-        <span style={{ fontSize: 13, color: '#64748B', fontWeight: 600 }}>{label}</span>
-        <span style={{ fontSize: 14, fontWeight: 700, color: barColor, fontVariantNumeric: 'tabular-nums' }}>
-          {value != null ? `${Number(value).toFixed(1)}${unit}` : '—'}
-        </span>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: 4, color: palette.text }}>
+      <div style={{
+        background: palette.panel, border: `1px solid ${palette.border}`,
+        borderRadius: 10, padding: 12,
+        display: 'flex', alignItems: 'center', gap: 16,
+      }}>
+        <Gauge
+          value={rpm} min={500} max={2400} unit="rpm" label="ENGINE RPM"
+          size={240} sim
+          zones={[
+            { from: 500, to: 800, color: palette.warn },
+            { from: 800, to: 2000, color: palette.ok },
+            { from: 2000, to: 2400, color: palette.crit },
+          ]}
+          subtitle={d.status?.toUpperCase()}
+        />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Stat label="TASK" value={d.status === 'pushing' ? 'PUSH GRADE' : d.status === 'repositioning' ? 'REPOSITIONING' : 'IDLE'}
+            palette={palette} />
+          <Stat label="PUSH CYCLES" value={d.push_cycles ?? 0} unit="this shift" palette={palette} />
+          <Stat label="MATERIAL MOVED" value={(d.material_moved_bcm || 0).toFixed(1)} unit="BCM" palette={palette} />
+        </div>
       </div>
-      <div style={{ height: 12, background: '#E2E8F0', borderRadius: 6, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 6, transition: 'width 0.5s' }} />
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+        <MetricTile label="Hydraulic Temp" value={d.hydraulic_oil_temp_c?.toFixed(1)} unit="°C"
+          status={hydraulicStatus} sim />
+        <MetricTile label="Transmission Temp" value={d.transmission_temp_c?.toFixed(1)} unit="°C"
+          status={transmissionStatus} sim />
+        <MetricTile label="Coolant" value={d.coolant_temp_c?.toFixed(1)} unit="°C"
+          status={d.coolant_temp_c > 100 ? 'crit' : 'ok'} />
+        <MetricTile label="Engine Load" value={d.engine_load_pct?.toFixed(0)} unit="%" />
+        <MetricTile label="Fuel Level" value={d.fuel_level_pct?.toFixed(0)} unit="%"
+          status={d.fuel_level_pct < 20 ? 'crit' : 'ok'} />
+        <MetricTile label="Oil Pressure" value={d.oil_pressure_bar?.toFixed(2)} unit="bar"
+          status={d.oil_pressure_bar < 3.5 ? 'crit' : 'ok'} />
+        <MetricTile label="Track Slip" value={trackSlip.toFixed(1)} unit="%" status={slipStatus}
+          hint={slipStatus === 'warn' ? 'Wheel spin detected' : 'Traction OK'} />
+        <MetricTile label="Blade Load" value={d.blade_load_pct?.toFixed(0)} unit="%" />
+        <MetricTile label="Ripper" value={d.ripper_status?.toUpperCase()} sim
+          status={d.ripper_status === 'engaged' ? 'warn' : 'ok'} />
+        <MetricTile label="SMR Hours" value={d.smr_hours} unit="h" sim
+          hint="Service Meter Reading" />
+        <MetricTile label="Segment" value={d.current_segment || '—'} sim />
+        <MetricTile label="Status" value={d.status?.toUpperCase()} unit="" />
+      </div>
+
+      <BladePanel pos={d.blade_position} palette={palette} />
+    </div>
+  )
+}
+
+function Stat({ label, value, unit, palette }) {
+  return (
+    <div style={{
+      background: palette.panelAlt, border: `1px solid ${palette.border}`,
+      borderLeft: `5px solid ${palette.accent}`, borderRadius: 6, padding: '8px 14px',
+    }}>
+      <div style={{
+        fontSize: 11, fontWeight: 800, color: palette.textDim,
+        letterSpacing: '0.06em', textTransform: 'uppercase',
+      }}>{label}</div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+        <span style={{ fontSize: 26, fontWeight: 900, color: palette.text, fontVariantNumeric: 'tabular-nums' }}>
+          {value}
+        </span>
+        {unit && <span style={{ fontSize: 12, color: palette.textDim, fontWeight: 600 }}>{unit}</span>}
       </div>
     </div>
   )
 }
 
-export default function DozerDisplay({ data: d }) {
+function BladePanel({ pos, palette }) {
+  if (!pos) return null
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#F8FAFC' }}>
-      {/* Top bar */}
-      <div className="topbar" style={{ justifyContent: 'space-between' }}>
-        <div>
-          <div style={{ fontWeight: 800, fontSize: 20 }}>{d.unit_id}</div>
-          <div style={{ fontSize: 12, color: '#7fa8cc' }}>Dozer — {d.site_id === 'siteA' ? 'Site A' : 'Site B'}</div>
-        </div>
-        <span style={{ background: '#3730A3', color: '#fff', borderRadius: 5, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-          {d.status?.toUpperCase().replace('_', ' ')}
-        </span>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#7fa8cc' }}>SHIFT WORKED</div>
-          <div style={{ fontWeight: 800, fontSize: 18, fontVariantNumeric: 'tabular-nums' }}>
-            {(d.shift_hours_worked || 0).toFixed(1)}h
-          </div>
-        </div>
+    <div style={{
+      background: palette.panel, border: `1px solid ${palette.border}`,
+      borderRadius: 8, padding: 12,
+    }}>
+      <div style={{
+        fontSize: 12, fontWeight: 800, color: palette.textDim,
+        letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12,
+      }}>
+        Blade Position
+        <span style={{
+          marginLeft: 6, background: palette.warn + '33', color: palette.warn,
+          fontSize: 9, fontWeight: 800, padding: '1px 5px', borderRadius: 3,
+        }}>[SIM]</span>
       </div>
-
-      {/* Main: 2x2 grid + engine row */}
-      <div style={{ flex: 1, padding: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* 2x2 grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, flex: 1 }}>
-          {/* Push cycles */}
-          <div className="metric-box" style={{ borderLeft: '4px solid #0066CC' }}>
-            <div className="metric-label">PUSH CYCLES</div>
-            <div style={{ fontSize: 56, fontWeight: 900, color: '#1e3a5f', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>
-              {d.push_cycles ?? 0}
-            </div>
-            <div style={{ fontSize: 12, color: '#64748B' }}>cycles selesai shift ini</div>
-          </div>
-
-          {/* Material moved */}
-          <div className="metric-box" style={{ borderLeft: '4px solid #00875A' }}>
-            <div className="metric-label">MATERIAL DIPINDAHKAN</div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span style={{ fontSize: 44, fontWeight: 900, color: '#00875A', fontVariantNumeric: 'tabular-nums' }}>
-                {d.material_moved_bcm?.toFixed(0) ?? '—'}
-              </span>
-              <span style={{ fontSize: 14, color: '#94A3B8' }}>BCM</span>
-            </div>
-            <div style={{ fontSize: 11, color: '#94A3B8' }}>[ASUMSI] Estimasi material</div>
-          </div>
-
-          {/* Blade load */}
-          <div className="metric-box">
-            <div className="metric-label" style={{ marginBottom: 10 }}>BLADE LOAD</div>
-            <GaugeBar label="Blade Load" value={d.blade_load_pct} color="#7C3AED" warn={70} danger={90} />
-            <GaugeBar label="Track Slip" value={d.track_slip_pct} max={20} color="#00875A" warn={8} danger={12} unit="%" />
-          </div>
-
-          {/* Segment */}
-          <div className="metric-box">
-            <div className="metric-label">AREA KERJA</div>
-            <div style={{ fontSize: 28, fontWeight: 800, color: '#1e3a5f', marginTop: 8 }}>
-              {d.current_segment?.replace('_', ' ').toUpperCase() || '—'}
-            </div>
-            <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>Segmen aktif</div>
-            {d.status === 'idle' && (
-              <div style={{ background: '#FEF3C7', border: '1px solid #FDE68A', borderRadius: 6, padding: '6px 10px', marginTop: 8, fontSize: 13, fontWeight: 700, color: '#92400E' }}>
-                IDLE — Menunggu penugasan
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Engine status row */}
-        <div className="metric-box">
-          <div className="metric-label" style={{ marginBottom: 10 }}>STATUS MESIN</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            {[
-              { label: 'Fuel', value: d.fuel_level_pct, unit: '%', warn: 30, danger: 20 },
-              { label: 'Engine Load', value: d.engine_load_pct, unit: '%', warn: 85, danger: 95 },
-              { label: 'Coolant °C', value: d.coolant_temp_c, max: 120, unit: '°C', warn: 95, danger: 100 },
-              { label: 'Oil Bar', value: d.oil_pressure_bar, max: 6, unit: ' bar', warn: 3.8, danger: 3.5 },
-            ].map(m => {
-              const color = m.danger && m.value <= m.danger && m.label === 'Oil Bar' ? '#C41E3A'
-                : m.danger && m.value >= m.danger ? '#C41E3A'
-                : m.warn && m.value <= m.warn && m.label === 'Oil Bar' ? '#F59E0B'
-                : m.warn && m.value >= m.warn ? '#F59E0B' : '#00875A'
-              return (
-                <div key={m.label} style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600 }}>{m.label}</div>
-                  <div style={{ fontSize: 24, fontWeight: 800, color, fontVariantNumeric: 'tabular-nums' }}>
-                    {m.value?.toFixed(1) ?? '—'}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#94A3B8' }}>{m.unit}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {d.fault_code && <div className="fault-box">FAULT: {d.fault_code}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <BladeAxis label="LIFT" value={pos.lift_mm} unit="mm" range={[-300, 300]} palette={palette} />
+        <BladeAxis label="TILT" value={pos.tilt_deg} unit="°" range={[-15, 15]} palette={palette} />
+        <BladeAxis label="ANGLE" value={pos.angle_deg} unit="°" range={[-30, 30]} palette={palette} />
       </div>
+    </div>
+  )
+}
 
-      <div style={{ background: '#1e3a5f', color: '#7fa8cc', fontSize: 11, padding: '5px 16px', display: 'flex', justifyContent: 'space-between' }}>
-        <span>Jam Mesin: {d.engine_hours?.toFixed(0)} jam</span>
-        <span>v3 — [ASUMSI demo data]</span>
-        <span>{new Date().toLocaleTimeString('id-ID')}</span>
+function BladeAxis({ label, value, unit, range, palette }) {
+  const [min, max] = range
+  const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100))
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: palette.textDim, marginBottom: 6 }}>
+        {label}
+      </div>
+      <div style={{
+        position: 'relative', height: 24, background: palette.panelAlt, borderRadius: 4,
+        border: `1px solid ${palette.border}`,
+      }}>
+        <div style={{
+          position: 'absolute', top: 0, bottom: 0, left: '50%', width: 1,
+          background: palette.border,
+        }} />
+        <div style={{
+          position: 'absolute', top: 2, bottom: 2,
+          left: `calc(${pct}% - 5px)`, width: 10,
+          background: palette.accent, borderRadius: 3,
+        }} />
+      </div>
+      <div style={{
+        textAlign: 'center', fontSize: 22, fontWeight: 900,
+        color: palette.text, fontVariantNumeric: 'tabular-nums', marginTop: 4,
+      }}>
+        {value > 0 ? '+' : ''}{value}<span style={{ fontSize: 12, color: palette.textDim, marginLeft: 4 }}>{unit}</span>
       </div>
     </div>
   )

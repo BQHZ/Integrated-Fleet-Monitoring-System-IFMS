@@ -1,7 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const BACKEND_HOST = 'localhost'
-const WS_URL = (unitId) => `ws://${BACKEND_HOST}:8000/ws/incab/${unitId}`
 const BASE_URL = `http://${BACKEND_HOST}:8000`
 
 const PRIO_COLOR = { low: '#475569', normal: '#0066CC', high: '#C41E3A' }
@@ -11,7 +10,7 @@ const TYPE_LABEL = {
   speed_limit: 'SPEED LIMIT', message: 'MESSAGE',
 }
 
-function playChime(priority) {
+function playInstructionChime(priority) {
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     const now = ctx.currentTime
@@ -33,70 +32,24 @@ function playChime(priority) {
 }
 
 /**
+ * Active instruction banner. Drived dari `active` prop (useIncabBus.latestInstruction).
  * Props:
+ *  - active: instruction object or null
  *  - unitId: string
- *  - onInstructionsChange: (list) => void  (untuk MiniMap consume)
+ *  - onAck: (updated) => void
+ *  - onDismiss: () => void
  */
-export default function InstructionBanner({ unitId, onInstructionsChange }) {
-  const [instructions, setInstructions] = useState([])  // semua received
-  const [active, setActive] = useState(null)
+export default function InstructionBanner({ active, unitId, onAck, onDismiss }) {
   const [acking, setAcking] = useState(false)
-  const wsRef = useRef(null)
-  const reconnectTimerRef = useRef(null)
-  const knownIdsRef = useRef(new Set())
 
-  // Notify parent on change
-  useEffect(() => { onInstructionsChange?.(instructions) }, [instructions, onInstructionsChange])
-
-  // WS connect with auto-reconnect
+  // Play chime when active changes to new instruction
   useEffect(() => {
-    let cancelled = false
+    if (active) playInstructionChime(active.priority)
+  }, [active?.id])
 
-    const connect = () => {
-      if (cancelled) return
-      const ws = new WebSocket(WS_URL(unitId))
-      wsRef.current = ws
-
-      ws.onmessage = (event) => {
-        try {
-          const msg = JSON.parse(event.data)
-          if (msg.type === 'instruction') {
-            const ins = msg.data
-            setInstructions(prev => {
-              // Avoid duplicates (initial unacked load + live push)
-              if (prev.some(p => p.id === ins.id)) return prev
-              return [ins, ...prev]
-            })
-            // Show active banner + chime hanya untuk yang belum pernah dilihat
-            if (!knownIdsRef.current.has(ins.id) && ins.status !== 'ack') {
-              knownIdsRef.current.add(ins.id)
-              setActive(ins)
-              playChime(ins.priority)
-            }
-          } else if (msg.type === 'ack') {
-            setInstructions(prev => prev.map(i => i.id === msg.data.id ? msg.data : i))
-            setActive(prev => prev?.id === msg.data.id ? null : prev)
-          }
-        } catch (e) { /* ignore */ }
-      }
-
-      ws.onclose = () => {
-        if (cancelled) return
-        reconnectTimerRef.current = setTimeout(connect, 3000)
-      }
-      ws.onerror = () => { /* will close */ }
-    }
-
-    connect()
-    return () => {
-      cancelled = true
-      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
-      wsRef.current?.close()
-    }
-  }, [unitId])
+  if (!active) return null
 
   const handleAck = async () => {
-    if (!active) return
     setAcking(true)
     try {
       const res = await fetch(`${BASE_URL}/dispatch/instructions/${active.id}/ack`, {
@@ -106,14 +59,11 @@ export default function InstructionBanner({ unitId, onInstructionsChange }) {
       })
       if (res.ok) {
         const updated = await res.json()
-        setInstructions(prev => prev.map(i => i.id === updated.id ? updated : i))
-        setActive(null)
+        onAck?.(updated)
       }
-    } catch (e) { /* ignore, will reconnect */ }
+    } catch (e) { /* ignore */ }
     setAcking(false)
   }
-
-  if (!active) return null
 
   const color = PRIO_COLOR[active.priority] || '#475569'
   const label = TYPE_LABEL[active.type] || active.type.toUpperCase()
@@ -125,7 +75,6 @@ export default function InstructionBanner({ unitId, onInstructionsChange }) {
       padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 16,
       borderBottom: '3px solid rgba(255,255,255,0.3)',
       fontFamily: 'Inter, sans-serif',
-      animation: 'flashBanner 0.6s ease-out',
     }}>
       <div style={{
         background: 'rgba(255,255,255,0.2)', borderRadius: 4,
@@ -153,19 +102,12 @@ export default function InstructionBanner({ unitId, onInstructionsChange }) {
 function describePayload(type, payload) {
   if (!payload) return ''
   switch (type) {
-    case 'assignment':
-      return `Pergi ke ${payload.excavator_id} · dump ${payload.dumping_zone}`
-    case 'waypoint':
-      return `Ikuti rute baru — ${payload.coords?.length || 0} waypoint`
-    case 'digging_point':
-      return `Digging point baru: ${payload.coord?.map(c => c.toFixed(5)).join(', ')}`
-    case 'dumping_point':
-      return `Dumping point baru: ${payload.coord?.map(c => c.toFixed(5)).join(', ')}`
-    case 'speed_limit':
-      return `Speed limit ${payload.kmh} km/h`
-    case 'message':
-      return payload.text || ''
-    default:
-      return JSON.stringify(payload).slice(0, 80)
+    case 'assignment':    return `Pergi ke ${payload.excavator_id} · dump ${payload.dumping_zone}`
+    case 'waypoint':      return `Ikuti rute baru — ${payload.coords?.length || 0} waypoint`
+    case 'digging_point': return `Digging point baru: ${payload.coord?.map(c => c.toFixed(5)).join(', ')}`
+    case 'dumping_point': return `Dumping point baru: ${payload.coord?.map(c => c.toFixed(5)).join(', ')}`
+    case 'speed_limit':   return `Speed limit ${payload.kmh} km/h`
+    case 'message':       return payload.text || ''
+    default:              return JSON.stringify(payload).slice(0, 80)
   }
 }

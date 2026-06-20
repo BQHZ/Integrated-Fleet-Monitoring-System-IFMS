@@ -20,12 +20,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from auth import get_current_user, require_role
+from admin import audit as _audit_log
 
 DATA_DIR = Path(__file__).parent / "data"
 INSTRUCTIONS_FILE = DATA_DIR / "instructions.json"
+FEEDBACK_FILE = DATA_DIR / "feedback.json"
 UNITS_FILE = DATA_DIR / "units.json"
 
 MQTT_INSTRUCTION_TOPIC = "incab/{unit_id}/instruction"
+MQTT_FEEDBACK_TOPIC = "incab/{unit_id}/feedback"
+
+FEEDBACK_CATEGORIES = {"safety", "productivity", "quality", "praise"}
 
 INSTRUCTION_TYPES = {
     "assignment", "waypoint", "digging_point", "dumping_point", "speed_limit", "message",
@@ -58,6 +63,20 @@ def _read_instructions() -> list[dict]:
 def _write_instructions(items: list[dict]):
     INSTRUCTIONS_FILE.parent.mkdir(parents=True, exist_ok=True)
     INSTRUCTIONS_FILE.write_text(json.dumps({"instructions": items}, indent=2), encoding="utf-8")
+
+
+def _read_feedback() -> list[dict]:
+    if not FEEDBACK_FILE.exists():
+        return []
+    try:
+        return json.loads(FEEDBACK_FILE.read_text(encoding="utf-8")).get("feedback", [])
+    except json.JSONDecodeError:
+        return []
+
+
+def _write_feedback(items: list[dict]):
+    FEEDBACK_FILE.parent.mkdir(parents=True, exist_ok=True)
+    FEEDBACK_FILE.write_text(json.dumps({"feedback": items}, indent=2), encoding="utf-8")
 
 
 def _read_units() -> list[dict]:
@@ -212,6 +231,12 @@ async def create_instruction(
     items.insert(0, instruction)
     _write_instructions(items[:500])  # cap
 
+    # Audit log mutation
+    try:
+        _audit_log(user, "create", f"instruction:{instruction['id']}", None, instruction)
+    except Exception:
+        pass
+
     # Publish MQTT (fire-and-forget)
     _mqtt_publish(_ctx["mqtt"], body.unit_id, instruction)
 
@@ -257,6 +282,106 @@ async def ack_instruction(instruction_id: str, body: AckBody | None = None):
     if loop is not None:
         asyncio.run_coroutine_threadsafe(
             incab_manager.broadcast(items[idx]["unit_id"], {"type": "ack", "data": items[idx]}),
+            loop,
+        )
+    return items[idx]
+
+
+# ============================================================
+# FEEDBACK (operator coaching)
+# ============================================================
+
+class FeedbackCreate(BaseModel):
+    unit_id: str
+    category: str
+    text: str = Field(min_length=1, max_length=200)
+    priority: str = "normal"
+
+
+@router.post("/feedback", status_code=201)
+async def create_feedback(
+    body: FeedbackCreate,
+    user: dict = Depends(require_role("super_admin", "roc_dispatcher")),
+):
+    if body.category not in FEEDBACK_CATEGORIES:
+        raise HTTPException(400, f"Category invalid. Allowed: {sorted(FEEDBACK_CATEGORIES)}")
+    if body.priority not in ("low", "normal", "high"):
+        raise HTTPException(400, f"Priority invalid: {body.priority}")
+
+    _check_unit_scope(user, body.unit_id)
+
+    feedback = {
+        "id": str(uuid.uuid4())[:8],
+        "ts": time.time(),
+        "unit_id": body.unit_id,
+        "category": body.category,
+        "text": body.text,
+        "priority": body.priority,
+        "sent_by": user.get("username"),
+        "status": "sent",
+        "ack_at": None,
+        "ack_by": None,
+    }
+    items = _read_feedback()
+    items.insert(0, feedback)
+    _write_feedback(items[:500])
+
+    # Audit log
+    try:
+        _audit_log(user, "create", f"feedback:{feedback['id']}", None, feedback)
+    except Exception:
+        pass
+
+    # MQTT publish
+    if _ctx["mqtt"] is not None:
+        try:
+            _ctx["mqtt"].publish(
+                MQTT_FEEDBACK_TOPIC.format(unit_id=body.unit_id),
+                json.dumps(feedback),
+            )
+        except Exception as e:
+            print(f"[feedback] MQTT publish error: {e}")
+
+    # WS push (reuse incab manager; in-cab differentiates by msg.type)
+    loop = _ctx["loop"]
+    if loop is not None:
+        asyncio.run_coroutine_threadsafe(
+            incab_manager.broadcast(body.unit_id, {"type": "feedback", "data": feedback}),
+            loop,
+        )
+
+    return feedback
+
+
+@router.get("/feedback")
+async def list_feedback(
+    unit_id: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    user: dict = Depends(get_current_user),
+):
+    items = _read_feedback()
+    if unit_id:
+        items = [i for i in items if i["unit_id"] == unit_id]
+    return items[:limit]
+
+
+# Ack tanpa auth (dipanggil dari in-cab device)
+@router.post("/feedback/{feedback_id}/ack")
+async def ack_feedback(feedback_id: str, body: AckBody | None = None):
+    items = _read_feedback()
+    idx = next((i for i, x in enumerate(items) if x["id"] == feedback_id), None)
+    if idx is None:
+        raise HTTPException(404, "Feedback tidak ditemukan")
+    items[idx]["status"] = "ack"
+    items[idx]["ack_at"] = time.time()
+    if body and body.operator:
+        items[idx]["ack_by"] = body.operator
+    _write_feedback(items)
+
+    loop = _ctx["loop"]
+    if loop is not None:
+        asyncio.run_coroutine_threadsafe(
+            incab_manager.broadcast(items[idx]["unit_id"], {"type": "feedback_ack", "data": items[idx]}),
             loop,
         )
     return items[idx]

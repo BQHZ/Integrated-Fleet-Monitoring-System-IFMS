@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import KPICard from '../components/KPICard.jsx'
+import Skeleton from '../components/Skeleton.jsx'
 import FleetMapGL from '../components/map/FleetMapGL.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import AlertFeed from '../components/AlertFeed.jsx'
@@ -111,7 +112,20 @@ export default function FleetOverview({ units, metricsOverall, metricsBySite, al
         />
       </div>
 
-      {/* Production KPI Row */}
+      {/* Production KPI Row — skeleton saat loading */}
+      {!kpi && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card" style={{ padding: 16 }}>
+              <Skeleton height={12} width="50%" />
+              <div style={{ height: 10 }} />
+              <Skeleton height={28} width="60%" />
+              <div style={{ height: 8 }} />
+              <Skeleton height={10} width="70%" />
+            </div>
+          ))}
+        </div>
+      )}
       {kpi && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
           <KPICard title="BCM/Hour" value={kpi.bcm_per_hour} unit="BCM/hr" subtitle={`Target: ${kpi.target_bcm_per_hour}`} color="#0066CC" note="[ASUMSI]" />

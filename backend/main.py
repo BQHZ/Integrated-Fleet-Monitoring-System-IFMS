@@ -1211,7 +1211,7 @@ app.include_router(dispatch_router)
 @app.websocket("/ws/incab/{unit_id}")
 async def ws_incab(websocket: WebSocket, unit_id: str):
     """Push instruksi ke in-cab device. MVS: no auth ketat — unit_id valid sudah cukup."""
-    from dispatch import _read_instructions, _find_unit
+    from dispatch import _read_instructions, _read_feedback, _find_unit
     if not _find_unit(unit_id):
         await websocket.accept()
         await websocket.close(code=4404, reason=f"Unit {unit_id} tidak ditemukan")
@@ -1220,9 +1220,16 @@ async def ws_incab(websocket: WebSocket, unit_id: str):
     await incab_manager.register(unit_id, websocket)
     # Push pending unacked instructions
     pending = [i for i in _read_instructions() if i["unit_id"] == unit_id and i["status"] != "ack"]
-    for inst in reversed(pending[:10]):  # paling lama dulu
+    for inst in reversed(pending[:10]):
         try:
             await websocket.send_json({"type": "instruction", "data": inst})
+        except Exception:
+            break
+    # Push pending unacked feedback
+    pending_fb = [f for f in _read_feedback() if f["unit_id"] == unit_id and f["status"] != "ack"]
+    for fb in reversed(pending_fb[:10]):
+        try:
+            await websocket.send_json({"type": "feedback", "data": fb})
         except Exception:
             break
     try:
