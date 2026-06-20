@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { RadialBarChart, RadialBar, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts'
 import KPICard from '../components/KPICard.jsx'
 import Skeleton from '../components/Skeleton.jsx'
+import NorthStarHero from '../components/NorthStarHero.jsx'
 import FleetMapGL from '../components/map/FleetMapGL.jsx'
 import StatusBadge from '../components/StatusBadge.jsx'
 import AlertFeed from '../components/AlertFeed.jsx'
@@ -78,6 +79,9 @@ export default function FleetOverview({ units, metricsOverall, metricsBySite, al
           <span>Akses ditolak ke <code style={{ background: '#fff', padding: '1px 6px', borderRadius: 3 }}>{forbiddenBanner}</code> — role Anda tidak memiliki izin admin.</span>
         </div>
       )}
+
+      {/* ★ North Star Metric Hero — $/BCM ex-fuel */}
+      <NorthStarHero metrics={metricsOverall} kpi={kpi} targetUsdPerBcm={0.50} />
 
       {/* KPI Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
