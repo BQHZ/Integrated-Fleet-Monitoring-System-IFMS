@@ -55,9 +55,21 @@ MQTT_TOPIC_FILTER = "pama/fleet/#"
 
 # [ASUMSI] Konstanta operasional
 ASSUMED_BCM_PER_CYCLE = 18.0
-ASSUMED_COST_PER_HOUR_USD = 45.0
 ASSUMED_TARGET_BCM_SHIFT = 2500.0
 ASSUMED_SERVICE_INTERVAL_HOURS = 250
+
+# $/BCM Scenario Table (sumber: Junas J4 & PAMA group avg 2024)
+# Semua angka = USD per BCM (Total), fuel pass-through = 35%
+BCM_COST_SCENARIOS = {
+    "lower_bound": {"total": 1.10, "fuel_pct": 0.35, "ex_fuel": 0.71,
+                    "note": "Short haul, stripping ratio rendah (Junas J4)"},
+    "base_case":   {"total": 1.80, "fuel_pct": 0.35, "ex_fuel": 1.17,
+                    "note": "Mid-market, strip ratio 8.2x (PAMA group avg 2024)"},
+    "upper_bound": {"total": 2.40, "fuel_pct": 0.35, "ex_fuel": 1.56,
+                    "note": "Long haul, stripping ratio tinggi (Junas J4)"},
+}
+ACTIVE_SCENARIO = "base_case"
+ACTIVE_BCM_RATE = BCM_COST_SCENARIOS[ACTIVE_SCENARIO]
 
 SITE_WAYPOINTS = {
     "siteA": {
@@ -370,10 +382,18 @@ class FleetStore:
         utilization_pct = (total_active / total_time * 100) if total_time > 0 else 0
         idle_pct = (total_idle / total_time * 100) if total_time > 0 else 0
 
-        total_hours = total_time / 3600
         total_bcm = total_cycles * ASSUMED_BCM_PER_CYCLE
-        total_cost = total_hours * len(units) * ASSUMED_COST_PER_HOUR_USD
-        proxy = (total_cost / total_bcm) if total_bcm > 0 else None
+
+        # $/BCM ex-fuel: base rate dikalikan efficiency penalty.
+        # Semakin rendah utilization → biaya ex-fuel naik (inverse efficiency).
+        # Saat utilization 100% → proxy = base ex-fuel rate.
+        # Saat utilization < 100% → proxy > base ex-fuel rate (ada idle cost).
+        base_ex_fuel = ACTIVE_BCM_RATE["ex_fuel"]  # $1.17 (base case)
+        if total_bcm > 0 and utilization_pct > 0:
+            efficiency_factor = 100.0 / max(utilization_pct, 10)  # clamp min 10%
+            proxy = base_ex_fuel * efficiency_factor
+        else:
+            proxy = None
 
         return {
             "utilization_pct": round(utilization_pct, 1),
@@ -382,6 +402,8 @@ class FleetStore:
             "active_units": len(units),
             "proxy_usd_per_bcm": round(proxy, 2) if proxy else None,
             "total_bcm_moved": round(total_bcm, 1),
+            "bcm_cost_scenarios": BCM_COST_SCENARIOS,
+            "active_scenario": ACTIVE_SCENARIO,
         }
 
     def dispatch_suggestions(self) -> list[dict]:

@@ -81,7 +81,7 @@ export default function FleetOverview({ units, metricsOverall, metricsBySite, al
       )}
 
       {/* ★ North Star Metric Hero — $/BCM ex-fuel */}
-      <NorthStarHero metrics={metricsOverall} kpi={kpi} targetUsdPerBcm={0.50} />
+      <NorthStarHero metrics={metricsOverall} kpi={kpi} targetUsdPerBcm={1.17} />
 
       {/* KPI Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
